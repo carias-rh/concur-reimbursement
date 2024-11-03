@@ -1,0 +1,180 @@
+#!/usr/bin/python3
+from selenium import webdriver
+
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.keys import Keys
+import time
+
+from datetime import datetime
+import argparse
+import sys
+import os
+
+counter = 1
+patience = 1
+mydate = datetime.now()
+url = "https://auth.redhat.com/auth/realms/EmployeeIDP/protocol/saml/clients/concursolutions"
+
+def step(step_str):
+    global counter, patience
+    print(str(counter) + ": " + step_str)
+    counter += 1
+    time.sleep(patience)
+
+parser = argparse.ArgumentParser(description='Submit $40 expense claim')
+parser.add_argument('--bill_date', dest='bill_date', help='The bill date')
+parser.add_argument('--receipt', dest='receipt', help='The receipt filename to attach')
+parser.add_argument('--vendor', dest='vendor', help='The vendor')
+parser.add_argument('--location', dest='location', help='The location')
+args = parser.parse_args()
+
+if args.bill_date is None or args.receipt is None:
+    print("Expected: python3 concur.py --bill_date 07/12/2022 --receipt july.pdf")
+    sys.exit(1)
+
+#options = webdriver.ChromeOptions()
+#options.add_argument('--ignore-certificate-errors')
+#options.add_argument("--window-size=1600,1200")
+#options.add_argument("--user-data-dir=/home/carias/.config/google-chrome/workday")
+#options.add_experimental_option("debuggerAddress", "localhost:9100")
+
+options = webdriver.FirefoxOptions()
+driver = webdriver.Firefox(options=options)
+driver.maximize_window()
+
+
+def open_profile():
+    os.popen('google-chrome --remote-debugging-port=9100 --user-data-dir="/home/carias/.config/google-chrome/workday" &')
+
+def check_running_session():
+    pid = os.popen("ps -ef | grep google-chrome/workday | grep 9100 |grep -v grep| head -n1 | awk {'print $2'}").read()
+    if pid: return int(pid)
+    else: return 0
+
+# Main
+#if not check_running_session():
+#    open_profile()
+#    driver = webdriver.Chrome(options=options)
+#
+#else:
+#    driver = webdriver.Chrome(options=options)
+
+wait = WebDriverWait(driver, 10)
+
+
+def accept_cookies():
+    try:
+        WebDriverWait(driver, 2).until(
+            EC.frame_to_be_available_and_switch_to_it((By.XPATH, '//*[class="gwt-Frame"]')))
+        WebDriverWait(driver, 2).until(EC.element_to_be_clickable(
+            (By.XPATH, '/html/body/div[8]/div[1]/div/div[3]/a[1]'))).click()
+        driver.refresh()
+    except:
+        print("An exception occurred while accepting cookies")
+
+
+def concur_login():
+    try:
+        # RH SSO
+        WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="submit"]'))).click()
+        WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="username"]'))).send_keys("{{ username }}")
+        WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="password"]'))).send_keys(str("{{ pin }}").replace('\n', '') + str(os.popen("curl -sL login:5000/get_otp").read().replace('\n', '')))
+        WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="submit"]'))).click()
+
+    except:
+        print("An exception occurred while accepting during login")
+
+step("Go to concur")
+driver.get(url)
+
+step("Login")
+concur_login()
+accept_cookies()
+
+step("Create expense")
+start_claim_element = wait.until(EC.presence_of_element_located(
+    (By.XPATH, '/html/body/div[2]/div/div/div/div/div/div/div[2]/ul/li[2]/div[1]/div/div/div/div/a/i')))
+start_claim_element.click()
+
+step("Enter claim name")
+report_name_field = wait.until(EC.presence_of_element_located((By.ID, "name")))
+report_name_field.send_keys('Remote Work Expense ' + mydate.strftime("%B"))
+
+step("Create claim")
+report_submit_button = wait.until(EC.presence_of_element_located((By.XPATH, "//*[@type='submit']")))
+report_submit_button.click()
+
+step("Add expense")
+add_expense_button = wait.until(EC.presence_of_element_located((By.XPATH, "//span[text()='Add Expense']")))
+add_expense_button.click()
+
+step("Choose expense type")
+remote_worker_expense = wait.until(
+    EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'New Expense')]")))
+remote_worker_expense.click()
+remote_worker_expense = wait.until(
+    EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Remote Worker Expense')]")))
+remote_worker_expense.click()
+
+step("Enter the date")
+bill_transaction_date = wait.until(
+    EC.presence_of_element_located((By.XPATH, '//input[@id="transactionDate-date-picker-input"]')))
+bill_transaction_date.send_keys(args.bill_date)
+bill_transaction_date.send_keys(Keys.TAB)
+
+step("Enter the vendor")
+bill_vendor = wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="vendorName"]')))
+bill_vendor.send_keys("Som Energía" if args.vendor is None else args.vendor)
+bill_vendor.send_keys(Keys.TAB)
+
+step("Enter the location")
+location_vendor = wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="location"]/button')))
+location_vendor.click()
+time.sleep(2)
+wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Madrid, SPAIN')]"))).click()
+location_vendor.send_keys(Keys.TAB)
+
+step("Enter the transaction amount")
+forty_dollars_expense = wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="transactionAmount"]')))
+forty_dollars_expense.send_keys(Keys.CONTROL + "a")
+forty_dollars_expense.send_keys(Keys.DELETE)
+forty_dollars_expense.send_keys("40")
+
+step("Choose USD")
+wait.until(EC.presence_of_element_located((By.XPATH, '//*[@name="transactionCurrencyName"]/button[2]'))).click()
+currency = wait.until(
+    EC.presence_of_element_located((By.XPATH, '//*[@data-nuiexp="field-transactionCurrencyName__input"]')))
+currency.click()
+currency.send_keys(Keys.CONTROL + "a")
+currency.send_keys(Keys.DELETE)
+
+currency.send_keys('US, Dollar')
+wait.until(
+    EC.presence_of_element_located((By.XPATH, '//*[@class="sapcnqr-selection-list__list-container"]'))).click()
+
+step("Set upload receipt file location")
+set_receipt_location = wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="upload-file"]')))
+
+set_receipt_location.send_keys("/home/carias/PycharmProjects/concur-reimbursement/" + args.receipt)
+time.sleep(5)
+
+step("Click save report")
+save = wait.until(EC.presence_of_element_located((By.XPATH, '//*[@data-enablenow-id="save-expense-button"]')))
+save.click()
+
+step("Submit report")
+submit = wait.until(EC.presence_of_element_located((By.XPATH, "//span[text()='Submit Report']")))
+submit.click()
+
+step("Confirm 1")
+submit1 = wait.until(EC.presence_of_element_located((By.XPATH, '//span[text()="Accept & Continue"]')))
+submit1.click()
+
+step("Close")
+
+step("We're all done, waiting for 30 seconds")
+time.sleep(30)
+
+driver.close()

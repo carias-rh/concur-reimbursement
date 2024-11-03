@@ -1,0 +1,61 @@
+- name: Concur work from home
+  hosts: localhost
+  vars_files: credentials.yml
+  vars:
+    - rh_username: "{{ username | default('') }}"
+    - rh_password: "{{ password | default('') }}"
+    - counter: 0
+    - status: "Away"
+
+  tasks:
+    - name: Generate selenium scripts
+      template:
+        src: "{{ item }}.j2"
+        dest: "{{ item }}"
+      loop:
+        - invoice.py
+        - concur.py
+
+      tags:
+        - invoice
+        - report
+
+    - name: Get timestamp from the system
+      shell: 'date -u +"%d/%m/%Y"'
+      register: bill_date
+      tags:
+        - invoice
+        - report
+
+    - name: debug date
+      debug:
+        var: bill_date.stdout
+      tags:
+        - invoice
+        - report
+
+    - name: Download invoice from provider
+      shell: 'python3 invoice.py'
+      tags:
+        - invoice
+
+    - name: transform
+      command: 'ls {{ bill_date.stdout | replace("/","-") }}.pdf'
+      tags:
+        - invoice
+
+    - name: Generate WFH report with {{ bill_date.stdout | replace("/","-") }}.pdf invoice
+      shell: 'python3 concur.py --bill_date {{ bill_date.stdout }} --receipt {{ bill_date.stdout | replace("/","-") }}.pdf'
+      tags:
+        - report
+
+    - name: Remove scripts
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - invoice.py
+        - concur.py
+      tags:
+        - invoice
+        - report

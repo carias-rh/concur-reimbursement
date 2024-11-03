@@ -1,0 +1,90 @@
+#!/usr/bin/python3
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+import time
+from datetime import datetime
+import os
+import glob
+
+counter = 1
+patience = 1
+mydate = datetime.now()
+#chrome_driver_dir = "/usr/bin/"
+#chrome_driver_location = chrome_driver_dir + "/chromedriver"
+#profile_location = ""
+url = "https://oficinavirtual.somenergia.coop/es/login/?next=/es/invoices/"
+
+#options = webdriver.ChromeOptions()
+#options.add_argument('--ignore-certificate-errors')
+#options.add_argument("--window-size=1600,1200")
+#options.add_argument("--user-data-dir=/home/carias/.config/google-chrome/workday")
+#options.add_experimental_option("debuggerAddress", "localhost:9100")
+
+options = webdriver.FirefoxOptions()
+driver = webdriver.Firefox(options=options)
+driver.maximize_window()
+
+
+def step(step_str):
+    global counter, patience
+    print(str(counter) + ": " + step_str)
+    counter += 1
+    time.sleep(patience)
+
+def open_profile():
+    os.popen('google-chrome --remote-debugging-port=9100 --user-data-dir="/home/carias/.config/google-chrome/workday" &')
+
+
+def check_running_session():
+    pid = os.popen("ps -ef | grep google-chrome/workday | grep 9100 |grep -v grep| head -n1 | awk {'print $2'}").read()
+    if pid: return int(pid)
+    else: return 0
+
+# Main
+#if not check_running_session():
+#    open_profile()
+#    driver = webdriver.Chrome(options=options)
+#
+#else:
+#    driver = webdriver.Chrome(options=options)
+
+driver.get(url)
+time.sleep(5)
+wait = WebDriverWait(driver, 30)
+
+
+step("Enter password")
+wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="id_password"]'))).send_keys("Vivasomenergia86!")
+
+step("Enter username")
+wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="id_username"]'))).send_keys("50884338N")
+
+step("Click login")
+wait.until(EC.presence_of_element_located((By.XPATH, '/html/body/div[2]/div/div/div/form/button'))).click()
+
+step("Order by date")
+wait.until(EC.presence_of_element_located((By.XPATH, '//a[text()="Periodo"]'))).click()
+time.sleep(1)
+wait.until(EC.presence_of_element_located((By.XPATH, '//a[text()="Periodo"]'))).click()
+
+step("Download pdf")
+download_pdf = wait.until(EC.presence_of_element_located((By.XPATH, "/html/body/div/main/section/form/div/table/tbody/tr[1]//span[text()='PDF']")))
+download_pdf.click()
+
+# Wait for download before renaming the file
+time.sleep(10)
+
+home = os.path.expanduser("~")
+downloadspath=os.path.join(home, "Downloads")
+
+list_of_files = glob.glob(downloadspath + "/*.pdf")
+filtered_files = [file for file in list_of_files if os.path.basename(file).lower().startswith("factura")]
+latest_file = max(filtered_files, key=os.path.getctime)
+print(latest_file)
+
+
+os.rename(latest_file, os.getcwd() + "/" + mydate.strftime("%d-%m-%Y") + ".pdf")
