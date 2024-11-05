@@ -23,19 +23,6 @@ def check_running_session():
     if pid: return int(pid)
     else: return 0
 
-
-def workday_login():
-    try:
-        driver.get('https://wd5.myworkday.com/redhat/d/home.htmld')
-
-        # RH SSO
-        WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="username"]'))).send_keys("{{ username }}")
-        WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="password"]'))).send_keys(str("{{ pin }}").replace('\n', '') + str(os.popen("curl -sL login:5000/get_otp").read().replace('\n', '')))
-        WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="submit"]'))).click()
-
-    except:
-        print("An exception occurred while accepting during snow login")
-
 def go_to_time():
     try:
         WebDriverWait(driver, 7).until(EC.element_to_be_clickable((By.XPATH, '//*[@id="app-chrome-container"]/div/div[6]/div[1]/div[1]/button'))).click()
@@ -60,7 +47,6 @@ def introduce_time():
 if not check_running_session():
     open_profile()
     driver = webdriver.Chrome(options=options)
-    workday_login()
     go_to_time()
     introduce_time()
 
