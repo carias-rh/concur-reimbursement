@@ -56,16 +56,6 @@ driver.get(url)
 time.sleep(5)
 wait = WebDriverWait(driver, 30)
 
-
-step("Enter password")
-wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="id_password"]'))).send_keys("Vivasomenergia86!")
-
-step("Enter username")
-wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="id_username"]'))).send_keys("50884338N")
-
-step("Click login")
-wait.until(EC.presence_of_element_located((By.XPATH, '/html/body/div[2]/div/div/div/form/button'))).click()
-
 step("Order by date")
 wait.until(EC.presence_of_element_located((By.XPATH, '//a[text()="Periodo"]'))).click()
 time.sleep(1)
